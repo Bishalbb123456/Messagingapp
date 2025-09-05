@@ -49,21 +49,6 @@ export class AuthManager {
   }
 
   // Check if username is available
-  private async checkUsernameAvailability(username: string): Promise<void> {
-    const { data: existingUser, error } = await supabase
-      .from('profiles')
-      .select('username')
-      .eq('username', username)
-      .single();
-
-    if (error && error.code !== 'PGRST116') {
-      throw new Error('Unable to check username availability. Please try again.');
-    }
-
-    if (existingUser) {
-      throw new Error('Username already taken. Please choose a different username.');
-    }
-  }
 
   // Generate unique user ID (with collision checking)
   private async generateUniqueUserId(): Promise<number> {
@@ -139,9 +124,6 @@ export class AuthManager {
     try {
       // Validate input
       this.validateUsername(username);
-
-      // Check username availability
-      await this.checkUsernameAvailability(username);
 
       // Generate encryption keys
       const keyPair = this.encryptionManager.generateKeyPair();
