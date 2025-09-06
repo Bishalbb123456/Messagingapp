@@ -30,8 +30,8 @@ function ActivityTracker() {
       }
     });
 
-    // Clean up the subscription
-    return () => subscription.remove();
+    // Handles both old and new RN APIs
+    return () => subscription.remove?.() ?? subscription();
   }, [profile?.id]);
 
   return null;
