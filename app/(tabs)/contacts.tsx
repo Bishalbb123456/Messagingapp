@@ -12,7 +12,9 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthManager, UserProfile } from '@/lib/auth';
 import { QRManager, QRUserData } from '@/lib/qr';
-import { Search, UserPlus, QrCode, Users, MessageCircle } from 'lucide-react-native';
+import { Search, UserPlus, QrCode, Users, Plus } from 'lucide-react-native';
+import { ChatManager } from '@/lib/chat';
+import { router as expoRouter } from 'expo-router';
 
 export default function ContactsScreen() {
   const { user } = useAuth();
@@ -22,6 +24,7 @@ export default function ContactsScreen() {
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrInput, setQrInput] = useState('');
   const authManager = AuthManager.getInstance();
+  const chatManager = ChatManager.getInstance();
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -56,14 +59,20 @@ export default function ContactsScreen() {
 
   const handleConnect = async (contact: UserProfile) => {
     Alert.alert(
-      'Connect with User',
-      `Connect with ${contact.username}? In a real peer-to-peer app, this would establish a direct connection.`,
+      'Start Chat',
+      `Start a conversation with ${contact.username}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         { 
-          text: 'Connect', 
-          onPress: () => {
-            Alert.alert('Connected', `You are now connected with ${contact.username}!`);
+          text: 'Start Chat', 
+          onPress: async () => {
+            try {
+              const chat = await chatManager.createChat([contact.id], false);
+              Alert.alert('Success', `Chat created with ${contact.username}!`);
+              // Navigate to chat screen when implemented
+            } catch (error) {
+              Alert.alert('Error', 'Failed to create chat. Please try again.');
+            }
           }
         },
       ]
@@ -71,35 +80,37 @@ export default function ContactsScreen() {
   };
 
   const handleQRConnect = async () => {
-    if (!qrInput.trim()) {
-      Alert.alert('Error', 'Please enter QR code data');
-      return;
-    }
+    if (qrInput.trim()) {
+      // Handle manual QR input
+      try {
+        const qrData = QRManager.parseQRData(qrInput.trim());
+        if (!qrData) {
+          Alert.alert('Error', 'Invalid QR code data');
+          return;
+        }
 
-    try {
-      const qrData = QRManager.parseQRData(qrInput.trim());
-      if (!qrData) {
-        Alert.alert('Error', 'Invalid QR code data');
-        return;
+        const contact = await authManager.getUserById(qrData.userId);
+        if (!contact) {
+          Alert.alert('Error', 'User not found');
+          return;
+        }
+
+        if (contact.id === user?.id) {
+          Alert.alert('Error', 'Cannot add yourself as a contact');
+          return;
+        }
+
+        // Connect with the user
+        await handleConnect(contact);
+        setShowQRModal(false);
+        setQrInput('');
+      } catch (error) {
+        Alert.alert('Error', 'Failed to connect with user');
       }
-
-      const contact = await authManager.getUserById(qrData.userId);
-      if (!contact) {
-        Alert.alert('Error', 'User not found');
-        return;
-      }
-
-      if (contact.id === user?.id) {
-        Alert.alert('Error', 'Cannot add yourself as a contact');
-        return;
-      }
-
-      // Connect with the user
-      await handleConnect(contact);
+    } else {
+      // Open camera scanner
       setShowQRModal(false);
-      setQrInput('');
-    } catch (error) {
-      Alert.alert('Error', 'Failed to connect with user');
+      expoRouter.push('/(tabs)/qr-scanner');
     }
   };
 
@@ -131,7 +142,7 @@ export default function ContactsScreen() {
         style={styles.connectButton}
         onPress={() => handleConnect(item)}
       >
-        <MessageCircle size={20} color="#25D366" />
+        <Plus size={18} color="#2563eb" />
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -144,7 +155,7 @@ export default function ContactsScreen() {
           style={styles.qrButton}
           onPress={() => setShowQRModal(true)}
         >
-          <QrCode size={24} color="#25D366" />
+          <QrCode size={24} color="#2563eb" />
         </TouchableOpacity>
       </View>
 
@@ -165,9 +176,13 @@ export default function ContactsScreen() {
       <View style={styles.quickActions}>
         <TouchableOpacity 
           style={styles.actionButton}
-          onPress={() => setShowQRModal(true)}
+          onPress={() => {
+            setTimeout(() => {
+              expoRouter.push('/(tabs)/qr-scanner');
+            }, 100);
+          }}
         >
-          <QrCode size={20} color="#25D366" />
+          <QrCode size={20} color="#2563eb" />
           <Text style={styles.actionButtonText}>Scan QR Code</Text>
         </TouchableOpacity>
       </View>
@@ -210,22 +225,30 @@ export default function ContactsScreen() {
             <TouchableOpacity onPress={() => setShowQRModal(false)}>
               <Text style={styles.modalCancel}>Cancel</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Connect via QR Code</Text>
+            <Text style={styles.modalTitle}>Add Contact</Text>
             <TouchableOpacity onPress={handleQRConnect}>
               <Text style={styles.modalDone}>Connect</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.modalContent}>
-            <View style={styles.qrScanArea}>
+            <TouchableOpacity 
+              style={styles.qrScanArea}
+              onPress={() => {
+                setShowQRModal(false);
+                setTimeout(() => {
+                  expoRouter.push('/(tabs)/qr-scanner');
+                }, 100);
+              }}
+            >
               <QrCode size={80} color="#ddd" />
               <Text style={styles.qrScanText}>
-                QR Code Scanner would appear here
+                Tap to Open Camera Scanner
               </Text>
               <Text style={styles.qrScanSubtext}>
-                In a real app, this would use the camera to scan QR codes
+                Use your camera to scan QR codes instantly
               </Text>
-            </View>
+            </TouchableOpacity>
 
             <Text style={styles.orText}>Or paste QR code data:</Text>
 
@@ -251,7 +274,7 @@ export default function ContactsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f8fafc',
   },
   header: {
     flexDirection: 'row',
@@ -260,13 +283,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    backgroundColor: '#fff',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#e2e8f0',
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#1e293b',
   },
   qrButton: {
     padding: 8,
@@ -278,7 +302,7 @@ const styles = StyleSheet.create({
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f1f5f9',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -287,7 +311,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 8,
     fontSize: 16,
-    color: '#333',
+    color: '#1e293b',
   },
   quickActions: {
     flexDirection: 'row',
@@ -300,14 +324,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f0fdf4',
+    backgroundColor: '#dbeafe',
     paddingVertical: 12,
     borderRadius: 8,
     gap: 8,
   },
   actionButtonText: {
     fontSize: 14,
-    color: '#25D366',
+    color: '#2563eb',
     fontWeight: '500',
   },
   resultsList: {
@@ -318,14 +342,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f5f5f5',
+    backgroundColor: '#fff',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#f1f5f9',
   },
   contactAvatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#25D366',
+    backgroundColor: '#2563eb',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -341,25 +366,27 @@ const styles = StyleSheet.create({
   contactName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: '#1e293b',
     marginBottom: 2,
   },
   contactId: {
     fontSize: 12,
-    color: '#999',
+    color: '#94a3b8',
     marginBottom: 2,
   },
   contactBio: {
     fontSize: 12,
-    color: '#666',
+    color: '#64748b',
     marginBottom: 2,
   },
   contactActivity: {
     fontSize: 11,
-    color: '#999',
+    color: '#94a3b8',
   },
   connectButton: {
-    padding: 8,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: '#dbeafe',
   },
   emptyContainer: {
     flex: 1,
@@ -369,19 +396,19 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    color: '#666',
+    color: '#64748b',
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#999',
+    color: '#94a3b8',
     textAlign: 'center',
     paddingHorizontal: 40,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f8fafc',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -390,21 +417,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    backgroundColor: '#fff',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#e2e8f0',
   },
   modalCancel: {
     fontSize: 16,
-    color: '#666',
+    color: '#64748b',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: '#1e293b',
   },
   modalDone: {
     fontSize: 16,
-    color: '#25D366',
+    color: '#2563eb',
     fontWeight: '600',
   },
   modalContent: {
@@ -415,39 +443,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 40,
     marginBottom: 30,
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    borderStyle: 'dashed',
   },
   qrScanText: {
     fontSize: 16,
-    color: '#666',
+    color: '#64748b',
     marginTop: 20,
     marginBottom: 8,
   },
   qrScanSubtext: {
     fontSize: 12,
-    color: '#999',
+    color: '#94a3b8',
     textAlign: 'center',
     paddingHorizontal: 40,
   },
   orText: {
     fontSize: 14,
-    color: '#666',
+    color: '#64748b',
     textAlign: 'center',
     marginBottom: 16,
   },
   qrInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
+    borderWidth: 0.5,
+    borderColor: '#e2e8f0',
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 16,
     fontSize: 14,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#fff',
     textAlignVertical: 'top',
     marginBottom: 12,
   },
   qrHint: {
     fontSize: 12,
-    color: '#999',
+    color: '#94a3b8',
     textAlign: 'center',
   },
 });

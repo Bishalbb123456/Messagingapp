@@ -6,12 +6,12 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#25D366',
-        tabBarInactiveTintColor: '#999',
+        tabBarActiveTintColor: '#2563eb',
+        tabBarInactiveTintColor: '#94a3b8',
         tabBarStyle: {
           backgroundColor: '#fff',
-          borderTopColor: '#eee',
-          borderTopWidth: 1,
+          borderTopColor: '#e2e8f0',
+          borderTopWidth: 0.5,
           paddingTop: 8,
           paddingBottom: 8,
         },
@@ -33,6 +33,12 @@ export default function TabLayout() {
           tabBarIcon: ({ size, color }) => (
             <Users size={size} color={color} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="qr-scanner"
+        options={{
+          href: null, // Hide from tab bar
         }}
       />
       <Tabs.Screen
